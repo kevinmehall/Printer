@@ -1,5 +1,6 @@
 #include "wiring_minimal.h"
 #include "Ansiterm.h"
+#include <avr/delay.h>
 
 #define minpin 0
 #define maxpin 7
@@ -17,7 +18,7 @@ class Encoder{
 	volatile uint8_t &PORT;
 	const char pin1;
 	const char pin2;
-	short pos;
+	volatile short pos;
 	volatile char changeFlag;
 	
 	inline void pinChanged(uint8_t portval, uint8_t changes){	
@@ -44,6 +45,8 @@ class Encoder{
 	}
 	
 };
+
+#define STEP_TIME 5
 
 class Motor{
 	public: 
@@ -78,10 +81,38 @@ class Motor{
 		PORT &= ~(1 << pin1);
 		enable();
 	}
+	
+	inline void s_right(){
+		right();
+		_delay_ms(STEP_TIME);
+		disable();
+	}
+	
+	inline void s_left(){
+		left();
+		_delay_ms(STEP_TIME);
+		disable();
+	}
 };
 
-Motor feed(PORTC, DDRC, 2, 0, 1);
-Motor carriage(PORTC, DDRC, 5, 3, 4);
+void stepMotor(Encoder &enc, Motor &mot, short step){
+	short startpos = enc.pos;
+	
+	while(abs(enc.pos - startpos) < abs(step)){
+		if (step > 0)
+			mot.s_right();
+		else
+			mot.s_left();
+		_delay_ms(STEP_TIME*2);
+	}
+	
+	mot.disable();
+}
+
+
+
+Motor carriage(PORTC, DDRC, 2, 0, 1);
+Motor feed(PORTC, DDRC, 5, 4, 3);
 
 Encoder carriageEnc(PORTB, 1, 2);
 Encoder feedEnc(PORTB, 6, 7);
@@ -131,6 +162,15 @@ int main() {
     				break;
     			case 's':
     				carriage.right();
+    				break;
+    			case 'z':
+    				stepMotor(feedEnc, feed, 10);
+    				break;
+    			case 'x':
+    				stepMotor(carriageEnc, carriage, -10);
+    				break;
+    			case 'c':
+    				stepMotor(carriageEnc, carriage, 10);
     				break;
     			default:
     				feed.disable();
