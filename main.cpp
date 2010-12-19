@@ -111,6 +111,8 @@ void stepMotor(Encoder &enc, Motor &mot, short step){
 
 
 
+
+
 Motor carriage(PORTC, DDRC, 2, 0, 1);
 Motor feed(PORTC, DDRC, 5, 4, 3);
 
@@ -118,8 +120,6 @@ Encoder carriageEnc(PORTB, 1, 2);
 Encoder feedEnc(PORTB, 6, 7);
 
 ISR(PCINT0_vect){
-	DDRB |= (1 << 5);
-	PORTB |= (1 << 5);
 	static uint8_t old_input_vals = 0;
 	uint8_t input = PINB;
 	uint8_t changed = input ^ old_input_vals;
@@ -127,6 +127,57 @@ ISR(PCINT0_vect){
 	
 	carriageEnc.pinChanged(input, changed);
 	feedEnc.pinChanged(input, changed);
+}
+
+#define SERVO_PORT PORTB
+#define SERVO_DDR DDRB
+#define SERVO_PIN 3
+
+uint8_t servo_state = 0;
+volatile uint16_t servoPos = 1500;
+
+ISR(TIMER1_COMPA_vect){
+	DDRB |= (1 << 5);
+	PORTB |= (1 << 5);
+
+	// Variable time interrupt - Handle pulsing of PWM servo outputs
+	uint16_t time = TCNT1; // take start time ASAP so time of this code doesn't matter
+	if (servo_state){
+		SERVO_PORT |= (1 << SERVO_PIN);
+		OCR1A = time + servoPos;
+		servo_state = 0;
+	}else{
+		SERVO_PORT &= ~ (1 << SERVO_PIN);
+		OCR1A = time + 16000;
+		servo_state = 1;
+	}
+}
+
+#define PAPER_SENSOR_PORT PORTB
+#define PAPER_SENSOR_INPUT PINB
+#define PAPER_SENSOR_PIN 0
+
+inline uint8_t paperSense(){
+	return PAPER_SENSOR_INPUT & (1 << PAPER_SENSOR_PIN);
+}
+
+void feedPaper(){
+	while (!paperSense()){
+		feed.right();
+	}
+	stepMotor(feedEnc, feed, 5500);
+	feedEnc.zero();
+}
+
+void printStatus(){
+	Serial.print("F: ");
+	Serial.print(feedEnc.pos);
+	Serial.print(" C: ");
+	Serial.print(carriageEnc.pos);
+	Serial.print(" P: ");
+	Serial.print(paperSense(), 2);
+	Serial.print(" S: ");
+	Serial.println(servoPos);
 }
 
 
@@ -137,48 +188,66 @@ int main() {
 
 	PCMSK0 = (1 << 1) | (1 << 6) | (1 << 2) | (1 << 7);
 	PCICR |= (1 << PCIE0);
+	PAPER_SENSOR_PORT |= (1 << PAPER_SENSOR_PIN);
+	
+	OCR1A = 100;
+	TCCR1A = 0;
+	TCCR1B = ((1 << CS11)); // Enable timer, 1mhz 
+	TIMSK1 = (1 << OCIE1A);
+	TCNT1 = 0;
+	
+	SERVO_DDR |= (1 << SERVO_PIN);
+	
 	sei();
+	
+	uint16_t val = 0;
 
 	for(;;){
 		if (carriageEnc.changeFlag || feedEnc.changeFlag){
 			carriageEnc.changeFlag = feedEnc.changeFlag = 0;
-			Serial.print("F: ");
-			Serial.print(feedEnc.pos);
-			Serial.print(" C: ");
-			Serial.println(carriageEnc.pos);
+			//printStatus();
 		}
 		
 		if (Serial.available() > 0) {
     		int incomingByte = Serial.read();
     		switch (incomingByte){
-    			case 'q':
-    				feed.left();
+    			case 'p':
+    				feedPaper();
+    				val = 0;
     				break;
-    			case 'a':
-    				feed.right();
-    				break;
-    			case 'w':
-    				carriage.left();
-    				break;
-    			case 's':
-    				carriage.right();
-    				break;
-    			case 'z':
-    				stepMotor(feedEnc, feed, 10);
-    				break;
-    			case 'x':
-    				stepMotor(carriageEnc, carriage, -10);
+    			case 't':
+    				Serial.println(val);
+					break;
+    			case 'f':
+    				stepMotor(feedEnc, feed, val);
+    				val = 0;
     				break;
     			case 'c':
-    				stepMotor(carriageEnc, carriage, 10);
+    				stepMotor(carriageEnc, carriage, val-carriageEnc.pos);
+    				val = 0;
+    				break;
+    			case 's':
+    				servoPos = val;
+    				val = 0;
+    				break;
+    			case 'n':
+    				servoPos += 10;
+    				break;
+    			case 'm':
+    				servoPos -= 10;
     				break;
     			default:
-    				feed.disable();
-    				carriage.disable();	
+    				if (incomingByte >='1' && incomingByte <='9'){
+    					val = val*10 + (1 + incomingByte - '1');
+    				}else if (incomingByte == '0'){
+    					val = val*10;
+    				}else{
+    					val = 0;
+    					feed.disable();
+    					carriage.disable();
+    				}
     		}
-    		Serial.print(PORTC, 2);
-    		Serial.print(" ");
-    		Serial.println((PINB&2), 2);
+    		printStatus();
     	}
 	}
 
