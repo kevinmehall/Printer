@@ -12,13 +12,15 @@ Ansiterm ansi;
 class Encoder{
 	public:
 	Encoder(volatile uint8_t &_port, char _pin1, char _pin2):
-		PORT(_port), pin1(_pin1), pin2(_pin2)
+		PORT(_port), pin1(_pin1), pin2(_pin2), pos(0), speed(0)
 		{}
 	
 	volatile uint8_t &PORT;
 	const char pin1;
 	const char pin2;
 	volatile short pos;
+	volatile short speed;
+	volatile uint16_t last_pos;
 	volatile char changeFlag;
 	
 	inline void pinChanged(uint8_t portval, uint8_t changes){	
@@ -40,8 +42,14 @@ class Encoder{
 		}
 	}
 	
+	inline void timerOvf(){
+		speed = pos - last_pos;
+		last_pos = pos;
+	}
+	
 	inline void zero(){
 		pos = 0;
+		last_pos = 0;
 	}
 	
 };
@@ -82,29 +90,43 @@ class Motor{
 		enable();
 	}
 	
-	inline void s_right(){
-		right();
-		_delay_ms(STEP_TIME);
-		disable();
+	inline void stop(){
+		PORT |= (1 << pin1) | (1 << pin2) | (1 << pin_en);
 	}
 	
-	inline void s_left(){
-		left();
-		_delay_ms(STEP_TIME);
-		disable();
-	}
 };
 
 void stepMotor(Encoder &enc, Motor &mot, short step){
 	short startpos = enc.pos;
+	short dest  = startpos + step;
+	
+	uint8_t i=0;
+	uint16_t error = abs(enc.pos - dest);
 	
 	while(abs(enc.pos - startpos) < abs(step)){
-		if (step > 0)
-			mot.s_right();
-		else
-			mot.s_left();
-		_delay_ms(STEP_TIME*2);
+		error = abs(enc.pos - dest);
+		int16_t force = max(error, 50) - abs(enc.speed)/2;
+		uint8_t power = constrain(force, 0, 255);
+		
+		if (force < 0){
+			mot.stop();
+		}else{
+			if (i < power){
+				if (step > 0)
+					mot.right();
+				else
+					mot.left();
+			}else{
+				mot.disable();
+			}
+		}
+		
+		i++;
 	}
+	
+	mot.stop();
+	
+	_delay_ms(100);
 	
 	mot.disable();
 }
@@ -129,6 +151,14 @@ ISR(PCINT0_vect){
 	feedEnc.pinChanged(input, changed);
 }
 
+ISR(TIMER1_OVF_vect){
+	DDRB |= (1 << 5);
+	PORTB ^= (1 << 5);
+
+	carriageEnc.timerOvf();
+	feedEnc.timerOvf();
+}
+
 #define SERVO_PORT PORTB
 #define SERVO_DDR DDRB
 #define SERVO_PIN 3
@@ -137,9 +167,6 @@ uint8_t servo_state = 0;
 volatile uint16_t servoPos = 1500;
 
 ISR(TIMER1_COMPA_vect){
-	DDRB |= (1 << 5);
-	PORTB |= (1 << 5);
-
 	// Variable time interrupt - Handle pulsing of PWM servo outputs
 	uint16_t time = TCNT1; // take start time ASAP so time of this code doesn't matter
 	if (servo_state){
@@ -193,7 +220,7 @@ int main() {
 	OCR1A = 100;
 	TCCR1A = 0;
 	TCCR1B = ((1 << CS11)); // Enable timer, 1mhz 
-	TIMSK1 = (1 << OCIE1A);
+	TIMSK1 = (1 << TOIE1) | (1 << OCIE1A);
 	TCNT1 = 0;
 	
 	SERVO_DDR |= (1 << SERVO_PIN);
@@ -205,7 +232,7 @@ int main() {
 	for(;;){
 		if (carriageEnc.changeFlag || feedEnc.changeFlag){
 			carriageEnc.changeFlag = feedEnc.changeFlag = 0;
-			//printStatus();
+			//Serial.println(carriageEnc.speed);
 		}
 		
 		if (Serial.available() > 0) {
