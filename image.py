@@ -40,8 +40,8 @@ CARRIAGE_STEP = 10
 PAGE_WIDTH = 2200 / CARRIAGE_STEP
 PAGE_HEIGHT = 10000 / FEED_STEP
 
-SERVO_DOWN = 740
-SERVO_UP = 820
+SERVO_DOWN = 790
+SERVO_UP = 840
 SERVO_NEUTRAL = 1500
 
 
@@ -58,7 +58,7 @@ class Printer:
 			print self.ser.readline()
 		self.ser.write(text)
 		self.ser.flush()
-		time.sleep(0.4)
+		time.sleep(0.1)
 		out = self.ser.readline()
 		print out
 		if len(out) < 5:
@@ -82,7 +82,7 @@ class Printer:
 			last_y = y
 		
 		self.pen_out()
-		self.feed(2000)
+		self.feedOut()
 		self.position_carriage(0)
 		self.log("Done")
 		
@@ -107,6 +107,10 @@ class Printer:
 			return
 		self.log("Feeding paper")
 		self.serial_write(dist*FEED_STEP, 'f')
+		
+	def feedOut(self):
+		self.log("Ejecting paper")
+		self.serial_write(0, 'x')
 		
 	def position_carriage(self, pos):
 		self.log("Positioning carriage")

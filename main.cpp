@@ -213,23 +213,24 @@ int main() {
     		switch (incomingByte){
     			case 'p':
     				feedPaper();
-    				val = 0;
     				break;
     			case 't':
     				Serial.println(val);
 					break;
     			case 'f':
     				stepMotor(feedEnc, feed, val);
-    				val = 0;
     				break;
     			case 'c':
     				stepMotor(carriageEnc, carriage, val-carriageEnc.pos);
-    				val = 0;
     				break;
     			case 's':
     				servoPos = val;
-    				val = 0;
+    				_delay_ms(100);
     				break;
+    			case 'x':
+    				feed.right();
+    				_delay_ms(1500);
+    				feed.disable();
     			case 'n':
     				servoPos += 10;
     				break;
@@ -237,17 +238,18 @@ int main() {
     				servoPos -= 10;
     				break;
     			default:
-    				if (incomingByte >='1' && incomingByte <='9'){
-    					val = val*10 + (1 + incomingByte - '1');
-    				}else if (incomingByte == '0'){
-    					val = val*10;
-    				}else{
-    					val = 0;
-    					feed.disable();
-    					carriage.disable();
-    				}
-    		}
-    		printStatus();
+    				feed.disable();
+    				carriage.disable();
+    			}
+    				
+				if (incomingByte >='1' && incomingByte <='9'){
+					val = val*10 + (1 + incomingByte - '1');
+				}else if (incomingByte == '0'){
+					val = val*10;
+				}else{
+					val = 0;
+					printStatus();
+				}
     	}
 	}
 
