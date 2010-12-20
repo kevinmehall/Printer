@@ -37,7 +37,7 @@ def runLengthEncode(im):
 	out.reverse()
 	return out
 
-SERIAL_PORT='/dev/ttyUSB0'
+SERIAL_PORT='/dev/ttyUSB1'
 
 FEED_STEP = 40
 CARRIAGE_STEP = 2

@@ -16,7 +16,7 @@ prog.hex: $(OBJECTS)
 isp: prog.hex
 	echo "Reset AVR"
 	sleep 1
-	sudo avrdude -p m168 -c arduino -P /dev/ttyUSB0 -b 115200 -e -U flash:w:"prog.hex"
+	sudo avrdude -p m168 -c arduino -P /dev/ttyUSB1 -b 115200 -e -U flash:w:"prog.hex"
 	
 	
 

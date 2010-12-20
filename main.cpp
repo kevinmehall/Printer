@@ -105,10 +105,10 @@ void stepMotor(Encoder &enc, Motor &mot, short step){
 	
 	while(abs(enc.pos - startpos) < abs(step)){
 		error = abs(enc.pos - dest);
-		int16_t force = max(error*3, 50) - abs(enc.speed)/2;
-		uint8_t power = constrain(force, 0, 100);
+		int16_t force = max(error*6, 70) - 2*abs(enc.speed);
+		uint8_t power = constrain(force, 0, 112);
 		
-		if (force < 0){
+		if (force < 30){
 			mot.stop();
 		}else{
 			if (i < power){
@@ -252,7 +252,7 @@ int main() {
     				break;
     			case 's':
     				servoPos = val;
-    				_delay_ms(100);
+    				_delay_ms(150);
     				break;
     			case 'x':
     				feed.right();
