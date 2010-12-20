@@ -105,8 +105,8 @@ void stepMotor(Encoder &enc, Motor &mot, short step){
 	
 	while(abs(enc.pos - startpos) < abs(step)){
 		error = abs(enc.pos - dest);
-		int16_t force = max(error, 50) - abs(enc.speed)/2;
-		uint8_t power = constrain(force, 0, 255);
+		int16_t force = max(error*3, 50) - abs(enc.speed)/2;
+		uint8_t power = constrain(force, 0, 100);
 		
 		if (force < 0){
 			mot.stop();
