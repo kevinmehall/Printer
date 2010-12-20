@@ -4,7 +4,8 @@ import gtk, gobject, threading, time, serial
 
 def toBitmap(filename, size):
 	im = Image.open(filename)
-	im.thumbnail(size)
+	im = im.resize(size)
+	print size, im.size
 	im = im.point(lambda i: (i>127)*255)
 	im = im.convert('1')
 	return im
@@ -24,18 +25,22 @@ def runLengthEncode(im):
 			else:
 				if pendown:
 					pendown = False
-					yout.append((y, xstartpos, x))
+					if y%2 == 1:
+						yout.append((y, x, xstartpos))
+					else:
+						yout.append((y, xstartpos, x))
 		if pendown:
 			yout.append((y, xstartpos, x))
-		yout.reverse()
+		if y%2 == 0:
+			yout.reverse()
 		out += yout
 	out.reverse()
 	return out
 
 SERIAL_PORT='/dev/ttyUSB0'
 
-FEED_STEP = 50
-CARRIAGE_STEP = 10
+FEED_STEP = 40
+CARRIAGE_STEP = 2
 
 PAGE_WIDTH = 2200 / CARRIAGE_STEP
 PAGE_HEIGHT = 10000 / FEED_STEP
@@ -58,7 +63,6 @@ class Printer:
 			print self.ser.readline()
 		self.ser.write(text)
 		self.ser.flush()
-		time.sleep(0.1)
 		out = self.ser.readline()
 		print out
 		if len(out) < 5:
@@ -118,8 +122,8 @@ class Printer:
 		
 	def draw_to(self, pos):
 		self.pen_down()
-		self.serial_write(pos*CARRIAGE_STEP, 'c')
 		self.log("Drawing")
+		self.serial_write(pos*CARRIAGE_STEP, 'c')
 		self.pen_up()
 		
 		
